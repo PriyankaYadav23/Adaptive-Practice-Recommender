@@ -11,7 +11,7 @@ student_list= summary['user_id'].unique()
 selected_student= st.selectbox("Select a student:", student_list)
 
 if st.button("Get Recommendation"):
-    url = f"http://127.0.0.1:8000/recommend/{selected_student}"
+    url = f"http://3.135.1.9:8000/recommend/{selected_student}"
     response = requests.get(url)
     data = response.json()
     
