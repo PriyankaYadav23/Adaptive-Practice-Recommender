@@ -1,87 +1,118 @@
-# Adaptive Practice Recommender — Knowledge Tracing
+# 📚 Adaptive Practice Recommender: Knowledge Tracing for Students
 
-An end-to-end machine learning system that predicts a student's probability of answering a question correctly on a given topic, and recommends which topics to practice next — ranked from weakest to strongest.
+A machine learning system that predicts if a student will answer the next question correctly, then recommends which topics to study next, weakest first. Trained on real student practice data from the RIIID / EdNet dataset.
 
-## Live Demo
+## 🧠 Machine Learning Pipeline
 
-- **Frontend (Streamlit)**: https://adaptive-practice-recommender-2vlca9ytfpgsww5ubefrm9.streamlit.app
-- **Backend API (FastAPI on AWS EC2)**: http://3.135.1.9:8000/docs
+### Architecture Overview
 
-## Problem
+The system works in four stages:
 
-Given a student's history of practice attempts across topics, predict how likely they are to answer correctly on each topic next, and surface the topics they are weakest in — so they know exactly what to study next.
+1. **Data Cleaning** - Load 1 million student interactions and keep only question attempts (lectures removed)
+2. **Feature Engineering** - Build 3 features from each student's practice history
+3. **Model Training** - Compare 4 models and pick the best one (XGBoost)
+4. **Recommendation** - Predict the chance of a correct answer for each topic, then sort topics from weakest to strongest
 
-## Architecture
+### Technical Implementation
 
+- **No Future Peeking**: Features use only the student's attempts *before* the current question, so the model never sees the answer it is predicting
+- **Feature Scaling**: Features are scaled with `StandardScaler`, which fixed a model that was only guessing the majority class
+- **Latest Snapshot**: A small summary table stores each student's latest state per topic, so the API stays fast
 
-The frontend and backend are deployed independently: the frontend is a lightweight UI hosted on Streamlit Cloud, and the backend (model + business logic) runs in a Docker container on an AWS EC2 instance, so the heavier ML dependencies stay off the UI host.
+## 🔧 Feature Engineering
 
-## Dataset
-
-RIIID / EdNet-style dataset (Kaggle "Riiid Answer Correctness Prediction") — real student-question interaction logs. A 1-million-row sample was used for this project (the full dataset has 100M+ rows); the pipeline is designed so it can be re-run on the full dataset with chunked/Dask processing.
-
-## Feature Engineering
-
-Three features were engineered from raw interaction logs, using only information available *before* each attempt (to avoid point-in-time leakage):
-
-| Feature | Description |
+| Feature | What it means |
 |---|---|
-| `topic_accuracy` | Rolling accuracy on this topic so far, based only on the student's past attempts |
-| `time_since_last_attempt` | Time elapsed since the student last practiced this topic (captures memory decay / recency) |
-| `ques_avg_accuracy` | Average difficulty of the question, computed as a global accuracy average across all students |
+| `topic_accuracy` | How often the student got this topic right so far |
+| `time_since_last_attempt` | How long since the student last practiced this topic (memory fades over time) |
+| `ques_avg_accuracy` | How hard the question is, based on all students' answers |
 
-**Known limitation**: `ques_avg_accuracy` is computed as a global average across the *entire* dataset (train + test), rather than only from training data. This is a simplification that introduces mild data leakage. It was an intentional trade-off for this project's scope; a production version would compute this feature using only training-set statistics.
+**Known limitation**: `ques_avg_accuracy` is averaged over the whole dataset, so it uses a little future information. This is a common shortcut for question difficulty, and it is noted on purpose.
 
-## Models Compared
+## 📊 Models Compared
 
 | Model | Accuracy |
 |---|---|
-| Baseline (majority class) | 65.10% |
-| Logistic Regression (unscaled features) | 65.10% |
-| Logistic Regression (scaled features) | 71.01% |
+| Baseline (always guess "correct") | 65.10% |
+| Logistic Regression (unscaled) | 65.10% |
+| Logistic Regression (scaled) | 71.01% |
 | Random Forest | 68.90% |
-| **XGBoost (best)** | **71.75%** |
+| **XGBoost (final model)** | **71.75%** |
 
-XGBoost was selected as the final model and saved with `joblib`.
+## 🎬 Demo
 
-## Tech Stack
+**Live app:** https://adaptive-practice-recommender-2vlca9ytfpgsww5ubefrm9.streamlit.app
 
-- **ML**: Python, Pandas, Scikit-learn, XGBoost
-- **Backend**: FastAPI, Uvicorn
-- **Frontend**: Streamlit
-- **Deployment**: Docker, AWS EC2, Streamlit Community Cloud
-- **Version control**: Git, GitHub
+<!-- Add a screenshot or GIF here, for example:
+![Recommender Demo](examples/demo.gif)
+-->
 
-## Project Structure
+*Pick a student from the dropdown, click "Get Recommendation", and see their topics ranked from weakest to strongest.*
 
+> The backend runs on AWS EC2 only when needed (to keep the cost at $0), so the live app may not return results when the server is stopped.
 
-## Running Locally
+**Example output for student 115:**
 
-```bash
-# Backend
-pip install -r requirements.txt
-uvicorn main:app --reload
+| Topic (part) | Chance of a correct answer |
+|---|---|
+| 3 | 16% ← study this first |
+| 4 | 46% |
+| 2 | 61% |
+| 5 | 75% |
+| 1 | 99% |
 
-# Frontend (in a separate terminal)
-streamlit run app.py
+## 🛠️ Technology Stack
+
+**Machine Learning**
+- Python, Pandas
+- scikit-learn
+- XGBoost
+- joblib
+
+**Web Application & API**
+- FastAPI
+- Uvicorn
+- Streamlit
+- Requests
+
+**Deployment**
+- Docker
+- AWS EC2
+- Streamlit Community Cloud
+
+## 🎮 Features
+
+- **Weakest Topic First**: Topics are ranked by the predicted chance of a correct answer
+- **Student History Aware**: Uses each student's own accuracy and practice timing
+- **REST API**: `GET /recommend/{user_id}` returns the ranked topics as JSON
+- **Separate Frontend and Backend**: The UI calls the API over HTTP, so each part can be deployed on its own
+- **Zero-Cost Deployment**: EC2 is started only for demos, with a zero-spend budget alert as a safety net
+
+## 📁 Project Structure
+
+```
+├── explore_data.ipynb          # Data cleaning, features, model training
+├── model_xgb.pkl               # Trained XGBoost model
+├── student_topic_summary.csv   # Latest features per student per topic
+├── main.py                     # FastAPI backend (/recommend/{user_id})
+├── app.py                      # Streamlit frontend
+├── Dockerfile                  # Container for the backend
+└── requirements.txt            # Python dependencies
 ```
 
-## Running with Docker
+The raw Kaggle files (`train.csv`, `questions.csv`) are not in the repo because of their size. Download them from the [Kaggle Riiid Answer Correctness Prediction](https://www.kaggle.com/competitions/riiid-test-answer-prediction) page.
 
-```bash
-docker build -t adaptive-recommender .
-docker run -p 8000:8000 adaptive-recommender
-```
+## 🏆 Technical Achievements
 
-## Deployment Notes
+- **Real Data at Scale**: Worked with a 1-million-row sample of a 100M+ row real dataset
+- **Leakage-Safe Features**: Rolling features built only from past attempts
+- **Evidence-Based Model Choice**: 4 models tested on the same held-out data before picking XGBoost
+- **Smaller Docker Image**: Switched to `xgboost-cpu` to drop a 342 MB unused GPU package, which fixed a "no space left" error on EC2
+- **Full Product**: Notebook → API → web app → Docker → cloud, all working end to end
 
-- The backend is containerized with Docker and deployed on an AWS EC2 instance (Ubuntu, t2.micro/t3.micro, free tier).
-- `xgboost-cpu` (instead of `xgboost`) is used in production to avoid pulling in unnecessary GPU/CUDA dependencies, keeping the Docker image significantly smaller.
-- The frontend is deployed separately on Streamlit Community Cloud and calls the AWS-hosted backend over HTTP.
+## 🔮 Future Improvements
 
-## Future Improvements
-
-- Scale the pipeline to the full 100M+ row dataset using chunked processing or Dask
-- Compute `ques_avg_accuracy` using training-set-only statistics to remove the remaining leakage
-- Add authentication and HTTPS to the backend API
-- Add model monitoring / retraining pipeline
+- Run the pipeline on the full 100M+ rows with chunked processing or Dask
+- Compute question difficulty from training data only, to remove the small leakage
+- Show a friendly message when the backend is offline
+- Add HTTPS and authentication to the API
