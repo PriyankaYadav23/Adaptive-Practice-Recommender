@@ -43,9 +43,7 @@ The system works in four stages:
 
 **Live app:** https://adaptive-practice-recommender-2vlca9ytfpgsww5ubefrm9.streamlit.app
 
-<!-- Add a screenshot or GIF here, for example:
-![Recommender Demo](examples/demo.gif)
--->
+![Recommender Demo](examples/recommender.png)
 
 *Pick a student from the dropdown, click "Get Recommendation", and see their topics ranked from weakest to strongest.*
 
