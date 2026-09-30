@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 import pandas as pd
 import joblib 
 
@@ -18,4 +18,6 @@ def recommend_topics(user_id):
 @app.get("/recommend/{user_id}")
 def get_recommend(user_id:int):
     result=recommend_topics(user_id)
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Student {user_id} not found")
     return {"user_id": user_id ,"recommendations":result}

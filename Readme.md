@@ -36,8 +36,28 @@ The system works in four stages:
 | Baseline (always guess "correct") | 65.10% |
 | Logistic Regression (unscaled) | 65.10% |
 | Logistic Regression (scaled) | 71.01% |
-| Random Forest | 68.90% |
+| Random Forest | 69.63% |
 | **XGBoost (final model)** | **71.75%** |
+
+### Beyond accuracy (XGBoost, 196,019 test rows)
+
+Accuracy alone can hide problems when classes are imbalanced (65% correct / 35% wrong), so the model is also checked per class.
+
+| Metric | Value |
+|---|---|
+| ROC-AUC | 0.758 |
+| Log loss | 0.546 |
+| Macro F1 | 0.661 |
+| Weighted F1 | 0.703 |
+
+| Class | Precision | Recall | F1 |
+|---|---|---|---|
+| 0 (answered wrong) | 0.636 | 0.445 | 0.523 |
+| 1 (answered correctly) | 0.744 | 0.864 | 0.799 |
+
+**What this means:** ROC-AUC (0.758) is the most relevant metric here, because the recommender *ranks* topics by predicted probability rather than making a yes/no call. The model is much better at spotting correct answers (recall 0.86) than wrong ones (recall 0.45) — it leans toward the majority class. Improving recall on wrong answers (for example with `scale_pos_weight` or a tuned threshold) is a planned next step.
+
+**Note:** XGBoost is trained on raw (unscaled) features — trees don't need scaling, and the API sends raw values, so training and serving use the same format.
 
 ## 🎬 Demo
 
